@@ -1,0 +1,335 @@
+var express = require('express');
+var bodyParser = require('body-parser');
+var mongoose = require('mongoose');
+
+var app = express();
+
+var jsonParser = bodyParser.json();
+var User = require('./models/user');
+var Message = require('./models/message');
+
+//NodeDocs: The url module provides utilities for URL resolution and parsing.
+var url = require('url');
+//NodeDocs: The querystring module provides utilities for parsing and formatting URL query strings. 
+var queryString = require('querystring');
+
+// Add your API endpoints here
+
+app.get('/users', function(req, res) {
+    User.find(function(err, users) {
+        if (err) {
+            return res.status(500).json({
+                message: 'Internal Server Error'
+            });
+        }
+        res.status(200).json(users);
+    });
+});
+
+
+app.get('/users/:userId', function(req, res) {
+    User.findById({
+        _id: req.params.userId
+    }, function(err, user) {
+        console.log('my error', err);
+        console.log('my user', user);
+//we want to target the user that is somewhere already in the database (ex: like getting a book in the library)
+    //should 404 on non-existent users
+        if (user == null) {
+            return res.status(404).json({
+                message: 'User not found'
+            });
+        }
+        if (err) {
+            res.status(500).json({
+                message: 'Internal Server Error'
+            });
+        }
+    //should return a single user        
+        res.status(200).json(user);
+    });
+});
+
+
+app.post('/users', jsonParser, function(req, res) {
+    console.log(req.body.username)
+    //should allow adding a user    
+    User.create({
+        username: req.body.username
+    }, function(err, user) {
+    //should reject users without a username
+        if (!req.body.username) {
+            return res.status(422).json({
+                message: 'Missing field: username'
+            });
+        }
+    //should reject non-string usernames        
+        if (typeof(req.body.username) !== 'string') {
+            return res.status(422).json({
+                message: 'Incorrect field type: username'
+            });
+        }
+        if (err) {
+            res.status(500).json({
+                message: 'Internal Server Error'
+            });
+        }
+    //should have header (location)  "setting up location response HTTP header Express framework"
+        res.location('/users/' + user._id)
+    //should return empty object        
+        res.status(201).json({});
+    });
+});
+
+app.put('/users/:userId', jsonParser, function(req, res){
+    //should allow editing a user
+    User.findByIdAndUpdate({_id: req.params.userId}, {username: req.body.username},
+    function(err, user) {
+        console.log('my user:' + user);
+        if(err) {
+            return res.status(500).json({
+                  message: 'Internal Server Error'
+            });
+        }
+        res.status(200).json({});
+        console.log('This Updated');
+        
+        //should create a user if they don't exist
+        if(!user) {
+            User.create({
+                username: req.body.username,
+                _id:req.params.userId
+                
+        //     }, function(err, user) {
+        //         if (err) {
+        //         return res.status(500);
+        //         }
+        //         res.status(200).json(user);
+            });
+            
+        }   
+    
+    });
+        
+        //should reject users without a username
+        if(!req.body.username) {
+            return res.status(422).json({
+                message: 'Missing field: username'
+            });
+        }
+        
+        //should reject non-string usernames
+        if (typeof(req.body.username) !== 'string') {
+            return res.status(422).json({
+                message: 'Incorrect field type: username'
+            });
+        }
+        
+        
+        
+
+});
+
+
+app.delete('/users/:userId', function(req, res) {
+    User.findByIdAndRemove(req.params.userId, function(err, user) {
+        //use null since user not found
+        if (user == null) {
+            return res.status(404).json({message: 'User not found'});
+        }
+        if(err){
+            return res.status(500);
+        }
+        res.status(200).json({});
+    });
+});
+
+app.get('/messages', jsonParser, function(req, res) {
+    
+var reqUrl = req.url;
+var query = url.parse(reqUrl).query;
+console.log('reqUrl' + reqUrl);
+console.log('query(parse)'+ query);
+console.log(queryString.parse(query));
+    Message.find(
+        queryString.parse(query)
+    ).populate('from').populate('to').exec(function(err, messages){
+    //console.log(messages);
+    //console.log(req.query);
+            if (err) {
+            return res.status(500).json({
+                message: 'Internal Server Error'
+            });
+        }
+                 res.json(messages);
+    
+    });
+});
+
+
+// app.post('/messages', jsonParser, function(req, res) {
+//     console.log(req.body.text)
+//     //should allow adding a message
+//     Message.create({
+//         from: req.body.from,
+//         to: req.body.to,
+//         text: req.body.text
+//     }, function(err, message) {
+        
+//         //should reject messages without text
+//         if (!req.body.text) {
+//             return res.status(422).json({
+//                 message: 'Missing field: text'
+//             });
+//         }
+//         //should reject text non-string text
+//             if (typeof(req.body.text) !== 'string') {
+//                 return res.status(422).json({
+//                     message: 'Incorrect field type: text'
+//                 });
+//             }
+//         //should reject to non-string text    
+//             if (typeof(req.body.to) !== 'string') {
+//                 return res.status(422).json({
+//                     message: 'Incorrect field type: to'
+//                 });
+//             }
+//         //should reject from non-string text
+//             if (typeof(req.body.from) !== 'string') {
+//                 return res.status(422).json({
+//                     message: 'Incorrect field type: from'
+//                 });
+//             }
+
+//         //should reject messages from non-existent user
+//             if (!req.body.from._id) {
+//                 return res.status(422).json({
+//                   message: 'Incorrect field value: to'  
+//                 });
+//             }
+        
+
+//         if (err) {
+//             res.status(500).json({
+//                 message: 'Internal Server Error'
+//             });
+//         }
+//         res.location('/messages/' + message._id);
+//         res.status(201).json({});
+//     });
+// });
+
+  app.post('/messages', jsonParser, function(req, res) {
+     if(req.body.text == undefined) {
+      return res.status(422).json({
+          message: 'Missing field: text'
+      });
+    }
+     if(!req.body.from) {
+      return res.status(422).json({
+          message: 'Incorrect field value: from'
+      });
+    }    
+    if(typeof(req.body.text) !== 'string') {
+      return res.status(422).json({
+          message: 'Incorrect field type: text'
+      });
+    }
+    if(typeof(req.body.to) !== 'string') {
+      return res.status(422).json({
+          message: 'Incorrect field type: to'
+      });
+    }
+    if(typeof(req.body.from) !== 'string') {
+      return res.status(422).json({
+          message: 'Incorrect field type: from'
+      });
+    }
+
+    var userPromise = User.findById(req.body.from).exec();
+    
+    var toPromise = userPromise.then(function(user) {
+        if (user == null) {
+            return res.status(422).json({
+                message: 'Incorrect field value: from'
+            });
+        }
+        
+        return User.findById(req.body.to);    
+    }, function(err) {
+         if (err) {
+            return res.status(500);
+        }
+    });
+    var messagePromise = toPromise.then(function(user) {
+        if (user == null) {
+            return res.status(422).json({
+                message: 'Incorrect field value: to'
+            });
+        }
+        return Message.create({
+        from: req.body.from,
+        to: req.body.to,
+        text: req.body.text
+        });
+    });
+    messagePromise.then(function(message) {
+        
+        res.location('/messages/'+ message._id).status(201).json({});
+    }, function(err) {
+        if(err) {
+            return res.status(422).json({
+                message: 'Missing field: message'
+            });
+        }
+    });
+}); 
+
+
+
+app.get('/messages/:messageId', function(req, res) {
+  Message.findOne(
+      {_id:req.params.messageId},
+        function(err, message){ 
+            if (err) {
+                return res.sendStatus(500);
+            }
+            
+        })
+ .populate('from')
+ .populate('to')
+ .then(function(messages) {
+     //should 404 on non-existent messages
+         if (!messages) {
+            console.log('404 error');
+            return res.status(404).json({message: 'Message not found'})
+            } 
+    //should return a single message    
+         res.json(messages);
+     });
+     
+});
+
+
+
+var runServer = function(callback) {
+    var databaseUri = process.env.DATABASE_URI || global.databaseUri || 'mongodb://localhost/sup';
+    mongoose.connect(databaseUri).then(function() {
+        var port = process.env.PORT || 8080;
+        var server = app.listen(port, function() {
+            console.log('Listening on localhost:' + port);
+            if (callback) {
+                callback(server);
+            }
+        });
+    });
+};
+
+
+if (require.main === module) {
+    runServer();
+};
+
+exports.app = app;
+exports.runServer = runServer;
+
